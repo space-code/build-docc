@@ -1,3 +1,5 @@
+![A GitHub Action for generating Swift DocC documentation](https://raw.githubusercontent.com/space-code/build-docc/main/resources/build-docc.png)
+
 <h1 align="center" style="margin-top: 0px;">build-docc</h1>
 
 <p align="center">
