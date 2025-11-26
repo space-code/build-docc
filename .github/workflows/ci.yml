@@ -1,0 +1,304 @@
+name: build-docc
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-docc-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-single-scheme:
+    name: Test Single Scheme
+    runs-on: macos-latest
+    steps:
+      - name: Checkout action repo
+        uses: actions/checkout@v4
+        with:
+          path: docc-action
+
+      - name: Create test Swift project
+        run: |
+          swift package init --type library --name TestLib
+
+          cat > Sources/TestLib/TestLib.swift << 'EOF'
+          /// A test library for DocC generation
+          ///
+          /// This library demonstrates DocC documentation generation.
+          public struct TestLib {
+              /// Creates a new instance
+              public init() {}
+              
+              /// A test function
+              /// - Returns: A greeting string
+              public func greet() -> String {
+                  return "Hello, DocC!"
+              }
+          }
+          EOF
+
+      - name: Build Documentation
+        uses: ./docc-action
+        with:
+          schemes: '["TestLib"]'
+          version: 'v1.0.0'
+          keep-old-versions: 'false'
+
+      - name: Verify Output
+        run: |
+          echo "📋 Checking documentation structure..."
+          
+          if [ ! -d "docs/v1.0.0/TestLib" ]; then
+            echo "❌ Documentation directory not found"
+            exit 1
+          fi
+
+          if [ ! -f "docs/v1.0.0/TestLib/index.html" ]; then
+            echo "❌ index.html not found"
+            exit 1
+          fi
+          
+          if [ ! -d "docs/v1.0.0/TestLib/documentation" ]; then
+            echo "❌ documentation directory not found"
+            exit 1
+          fi
+          
+          echo "✅ Single scheme test passed"
+
+          echo "📁 Generated structure:"
+          tree -L 4 docs/ || find docs/ -type f | head -20
+
+  test-multiple-schemes:
+    name: Test Multiple Schemes
+    runs-on: macos-latest
+    steps:
+      - name: Checkout action repo
+        uses: actions/checkout@v4
+        with:
+          path: action
+
+      - name: Create test project with multiple targets
+        run: |
+          cat > Package.swift << 'EOF'
+          // swift-tools-version: 5.9
+          import PackageDescription
+          
+          let package = Package(
+              name: "MultiTarget",
+              products: [
+                  .library(name: "CoreLib", targets: ["CoreLib"]),
+                  .library(name: "UILib", targets: ["UILib"]),
+              ],
+              targets: [
+                  .target(name: "CoreLib"),
+                  .target(name: "UILib", dependencies: ["CoreLib"]),
+              ]
+          )
+          EOF
+          
+          # CoreLib
+          mkdir -p Sources/CoreLib
+          cat > Sources/CoreLib/CoreLib.swift << 'EOF'
+          /// Core functionality library
+          public struct CoreLib {
+              public init() {}
+              
+              /// Core function
+              public func process() -> String {
+                  return "Core processing"
+              }
+          }
+          EOF
+          
+          # UILib
+          mkdir -p Sources/UILib
+          cat > Sources/UILib/UILib.swift << 'EOF'
+          import CoreLib
+          
+          /// UI components library
+          public struct UILib {
+              public init() {}
+              
+              /// UI function
+              public func render() -> String {
+                  return "UI rendering"
+              }
+          }
+          EOF
+
+      - name: Build Documentation
+        uses: ./action
+        with:
+          schemes: '["CoreLib", "UILib"]'
+          version: 'v1.0.0'
+          keep-old-versions: 'false'
+
+      - name: Verify Multiple Schemes
+        run: |
+          echo "📋 Checking multiple schemes..."
+
+          for SCHEME in CoreLib UILib; do
+            if [ ! -d "docs/v1.0.0/$SCHEME" ]; then
+              echo "❌ $SCHEME documentation not found"
+              exit 1
+            fi
+            
+            if [ ! -f "docs/v1.0.0/$SCHEME/index.html" ]; then
+              echo "❌ $SCHEME index.html not found"
+              exit 1
+            fi
+            
+            echo "✅ $SCHEME documentation generated"
+          done
+          
+          echo "✅ Multiple schemes test passed"
+
+  test-version-preservation:
+    name: Test Version Preservation
+    runs-on: macos-latest
+    steps:
+      - name: Checkout action repo
+        uses: actions/checkout@v4
+        with:
+          path: action
+
+      - name: Create test project
+        run: |
+          swift package init --type library --name VersionTest
+          
+          cat > Sources/VersionTest/VersionTest.swift << 'EOF'
+          /// Version test library
+          public struct VersionTest {
+              public init() {}
+              public func version() -> String { return "1.0" }
+          }
+          EOF
+
+      - name: Build v1.0.0 Documentation
+        uses: ./action
+        with:
+          schemes: '["VersionTest"]'
+          version: 'v1.0.0'
+          keep-old-versions: 'false'
+
+      - name: Verify v1.0.0
+        run: |
+          if [ ! -d "docs/v1.0.0/VersionTest" ]; then
+            echo "❌ v1.0.0 not found"
+            exit 1
+          fi
+          echo "✅ v1.0.0 created"
+
+      - name: Update source code
+        run: |
+          cat > Sources/VersionTest/VersionTest.swift << 'EOF'
+          /// Version test library (updated)
+          public struct VersionTest {
+              public init() {}
+              public func version() -> String { return "2.0" }
+              
+              /// New feature in v2
+              public func newFeature() -> String { return "New!" }
+          }
+          EOF
+
+      - name: Build v2.0.0 Documentation
+        uses: ./action
+        with:
+          schemes: '["VersionTest"]'
+          version: 'v2.0.0'
+          keep-old-versions: 'true'
+
+      - name: Verify Both Versions Exist
+        run: |
+          echo "📋 Checking version preservation..."
+
+          if [ ! -d "docs/v1.0.0/VersionTest" ]; then
+            echo "❌ v1.0.0 was deleted!"
+            exit 1
+          fi
+          echo "✅ v1.0.0 preserved"
+
+          if [ ! -d "docs/v2.0.0/VersionTest" ]; then
+            echo "❌ v2.0.0 not created"
+            exit 1
+          fi
+          echo "✅ v2.0.0 created"
+
+          echo "📁 Version structure:"
+          ls -la docs/
+          
+          echo "✅ Version preservation test passed"
+
+  test-no-version-preservation:
+    name: Test Without Version Preservation
+    runs-on: macos-latest
+    steps:
+      - name: Checkout action repo
+        uses: actions/checkout@v4
+        with:
+          path: action
+
+      - name: Create test project
+        run: |
+          swift package init --type library --name NoPreserve
+
+      - name: Create fake old docs
+        run: |
+          mkdir -p docs/v0.9.0/NoPreserve
+          echo "old version" > docs/v0.9.0/NoPreserve/index.html
+
+      - name: Build new version WITHOUT preservation
+        uses: ./action
+        with:
+          schemes: '["NoPreserve"]'
+          version: 'v1.0.0'
+          keep-old-versions: 'false'
+
+      - name: Verify old version is gone
+        run: |
+          if [ -d "docs/v0.9.0" ]; then
+            echo "❌ Old version should be deleted when keep-old-versions=false"
+            exit 1
+          fi
+
+          if [ ! -d "docs/v1.0.0/NoPreserve" ]; then
+            echo "❌ New version not created"
+            exit 1
+          fi
+          
+          echo "✅ Correctly deleted old versions"
+
+  test-summary:
+    name: Test Summary
+    needs: [test-single-scheme, test-multiple-schemes, test-version-preservation, test-no-version-preservation]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "# 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Single Scheme | ${{ needs.test-single-scheme.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Multiple Schemes | ${{ needs.test-multiple-schemes.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version Preservation | ${{ needs.test-version-preservation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| No Preservation | ${{ needs.test-no-version-preservation.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Проверяем, все ли тесты прошли
+          if [ "${{ needs.test-single-scheme.result }}" == "success" ] && \
+             [ "${{ needs.test-multiple-schemes.result }}" == "success" ] && \
+             [ "${{ needs.test-version-preservation.result }}" == "success" ] && \
+             [ "${{ needs.test-no-version-preservation.result }}" == "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ❌ Some tests failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
