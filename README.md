@@ -1,5 +1,10 @@
 <h1 align="center" style="margin-top: 0px;">build-docc</h1>
 
+<p align="center">
+<a href="https://github.com/space-code/build-docc/blob/main/LICENSE"><img alt="Licence" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a> 
+<a href="https://github.com/space-code/build-docc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/space-code/build-docc/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+</p>
+
 ## Description
 
 build-docc is a GitHub Action for generating Swift DocC documentation with support for multiple schemes and versioning.
