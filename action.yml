@@ -147,3 +147,7 @@ runs:
         echo "docs_path=$DOCS_DIR" >> $GITHUB_OUTPUT
         echo ""
         echo "🎉 Documentation generated for $REPO_NAME version $VERSION"
+
+branding:
+  icon: 'book'
+  color: 'purple'
