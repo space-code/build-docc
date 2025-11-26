@@ -66,6 +66,12 @@ runs:
         if [ "${{ inputs.keep-old-versions }}" == "true" ] && [ -d "docs" ]; then
           echo "📦 Saving existing documentation versions..."
           mv docs docs-old
+        else
+          echo "🗑️  Old versions will not be preserved"
+          if [ -d "docs" ]; then
+            echo "🗑️  Removing existing docs directory..."
+            rm -rf docs
+          fi
         fi
 
     - name: Build DocC

@@ -290,7 +290,6 @@ jobs:
           echo "| Version Preservation | ${{ needs.test-version-preservation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| No Preservation | ${{ needs.test-no-version-preservation.result }} |" >> $GITHUB_STEP_SUMMARY
 
-          # Проверяем, все ли тесты прошли
           if [ "${{ needs.test-single-scheme.result }}" == "success" ] && \
              [ "${{ needs.test-multiple-schemes.result }}" == "success" ] && \
              [ "${{ needs.test-version-preservation.result }}" == "success" ] && \
